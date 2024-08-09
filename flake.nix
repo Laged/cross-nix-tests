@@ -1,56 +1,71 @@
 {
-  description = "Flakebox Project template";
-
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     flake-utils.url = "github:numtide/flake-utils";
-    flakebox.url = "github:rustshop/flakebox";
+    naersk = {
+      url = "github:nix-community/naersk";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    nixpkgs.url = "nixpkgs/nixos-unstable";
   };
 
-  outputs = { self, nixpkgs, flake-utils, flakebox }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        projectName = "cross-nix-tests";
+  outputs = { self, fenix, flake-utils, naersk, nixpkgs }:
+    flake-utils.lib.eachDefaultSystem (system: let
+      pkgs = import nixpkgs {
+        system = system;
+        overlays = [ fenix.overlays.default ];
+      };
 
-        flakeboxLib = flakebox.lib.${system} {
-          config = {
-            github.ci.buildOutputs = [ ".#ci.${projectName}" ];
-          };
+      target = "armv7-unknown-linux-musleabihf";
+
+      # Access Fenix's packages using the stable channel for Rust 1.80.0
+      fenixPkgs = fenix.packages.${system};
+
+      mkToolchain = fenixPkgs: fenixPkgs.toolchainOf {
+        channel = "stable";
+        date = "2024-07-25";  # The correct date for Rust 1.80.0
+        sha256 = "sha256-6eN/GKzjVSjEhGO9FhWObkRFaE1Jf+uqMSdQnb8lcB4=";  # Pinned via hash
+      };
+
+      toolchain = fenixPkgs.combine [
+        (mkToolchain fenixPkgs).rustc
+        (mkToolchain fenixPkgs).cargo
+        (mkToolchain fenixPkgs.targets.${target}).rust-std
+      ];
+
+      naerskLib = pkgs.callPackage naersk {
+        cargo = toolchain;
+        rustc = toolchain;
+      };
+
+    in {
+      # Default package for native build
+      packages.default =
+        naerskLib.buildPackage {
+          src = ./.;
         };
 
-        buildPaths = [
-          "Cargo.toml"
-          "Cargo.lock"
-          "src"
-        ];
-
-        buildSrc = flakeboxLib.filterSubPaths {
-          root = builtins.path {
-            name = projectName;
-            path = ./.;
-          };
-          paths = buildPaths;
-        };
-
-        multiBuild =
-          (flakeboxLib.craneMultiBuild { }) (craneLib':
+      # Cross-compilation for ARMv7 with Rust 1.80.0 stable
+      packages.armv7 =
+        naerskLib.buildPackage {
+          src = ./.;
+          CARGO_BUILD_TARGET = target;
+          CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_LINKER =
             let
-              craneLib = (craneLib'.overrideArgs {
-                pname = projectName;
-                src = buildSrc;
-                nativeBuildInputs = [ ];
-              });
+              inherit (pkgs.pkgsCross.armv7l-hf-multiplatform.stdenv) cc;
             in
-            {
-              ${projectName} = craneLib.buildPackage { };
-            });
-      in
-      {
-        packages.default = multiBuild.${projectName};
+            "${cc}/bin/${cc.targetPrefix}cc";
+        };
 
-        legacyPackages = multiBuild;
-
-        devShells = flakeboxLib.mkShells { };
-      }
-    );
+      # Devshell for local development with Rust 1.80.0 stable
+      devShells.default = pkgs.mkShell {
+        nativeBuildInputs = [
+          toolchain
+          pkgs.pkg-config
+        ];
+      };
+    });
 }

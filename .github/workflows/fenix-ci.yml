@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    tags:
+      - v*
+  pull_request:
+    branches:
+      - master
+      - main
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    name: Build
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      matrix:
+        host:
+          - linux
+        include:
+          - host: linux
+            runs-on: ubuntu-latest
+            timeout: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Set up cargo cache
+        uses: actions/cache@v3
+        with:
+          key: ${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          path: ~/.cargo
+      - name: Build with Nix
+        run: nix build .#packages.armv7-linux
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: armv7-binary
+          path: ./result/bin/
+
+  flake:
+    name: Flake self-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Nix flake inputs
+        uses: DeterminateSystems/flake-checker-action@v5
+        with:
+          fail-mode: true
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Set up cargo cache
+        uses: actions/cache@v3
+        with:
+          key: ${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          path: ~/.cargo
+      - name: Commit Check
+        run: |
+          nix develop --ignore-environment .#lint --command ./misc/git-hooks/pre-commit
+
