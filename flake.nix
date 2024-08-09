@@ -7,12 +7,18 @@
       url = "github:rustshop/flakebox";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flakebox }: {
-    
-    packages.x86_64-linux.hello = nixpkgs.legacyPackages.x86_64-linux.hello;
-    packages.x86_64-linux.default = self.packages.x86_64-linux.hello;
-
-  };
+  outputs = { self, nixpkgs, flakebox, flake-utils }:
+    flake-utils.lib.eachDefaultSystem (system: 
+      let
+        flakeboxLib = flakebox.lib.${system} {};
+      in
+      {
+        devShells = flakeboxLib.mkShells {
+          packages = [ ];
+        };
+      }
+    );
 }
