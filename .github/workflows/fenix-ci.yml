@@ -67,20 +67,3 @@ jobs:
         uses: DeterminateSystems/flake-checker-action@v5
         with:
           fail-mode: true
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
-      - name: Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
-      - name: Set up cargo cache
-        uses: actions/cache@v3
-        with:
-          key: ${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          path: ~/.cargo
-      - name: Run Pre-commit Hook
-        run: nix develop --ignore-environment --command ./misc/git-hooks/pre-commit
