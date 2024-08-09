@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+# Ensure code is formatted with rustfmt
+nix develop --ignore-environment --command cargo fmt -- --check
+
+# Run clippy with strict rules
+nix develop --ignore-environment --command cargo clippy -- -D warnings
+
+# Run nix flake check
+nix flake check
