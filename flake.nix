@@ -1,54 +1,56 @@
 {
-  description = "A very basic flake";
+  description = "Flakebox Project template";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-24.05";
-    flakebox = {
-      url = "github:rustshop/flakebox";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    flakebox.url = "github:rustshop/flakebox";
   };
 
-  outputs = { self, nixpkgs, flakebox, flake-utils }:
-     flake-utils.lib.eachDefaultSystem (system:
-       let
-         flakeboxLib = flakebox.lib.${system} { };
+  outputs = { self, nixpkgs, flake-utils, flakebox }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        projectName = "cross-nix-tests";
 
-        rustSrc = flakeboxLib.filterSubPaths {
-          root = builtins.path {
-            name = "cross-nix-tests";
-            path = ./.;
+        flakeboxLib = flakebox.lib.${system} {
+          config = {
+            github.ci.buildOutputs = [ ".#ci.${projectName}" ];
           };
-          paths = [
-            "Cargo.toml"
-            "Cargo.lock"
-            ".cargo"
-            "src"
-          ];
         };
 
-        legacyPackages = (flakeboxLib.craneMultiBuild { }) (craneLib':
-          let
-            craneLib = (craneLib'.overrideArgs {
-              pname = "cross-nix-tests";
-              src = rustSrc;
+        buildPaths = [
+          "Cargo.toml"
+          "Cargo.lock"
+          "src"
+        ];
+
+        buildSrc = flakeboxLib.filterSubPaths {
+          root = builtins.path {
+            name = projectName;
+            path = ./.;
+          };
+          paths = buildPaths;
+        };
+
+        multiBuild =
+          (flakeboxLib.craneMultiBuild { }) (craneLib':
+            let
+              craneLib = (craneLib'.overrideArgs {
+                pname = projectName;
+                src = buildSrc;
+                nativeBuildInputs = [ ];
+              });
+            in
+            {
+              ${projectName} = craneLib.buildPackage { };
             });
-          in
-          rec {
-            workspaceDeps = craneLib.buildWorkspaceDepsOnly { };
-            workspaceBuild = craneLib.buildWorkspace {
-              cargoArtifacts = workspaceDeps;
-            };
-            cross-nix-tests = craneLib.buildPackage { };
-          });
-       in
-       {
-        inherit legacyPackages;
-        packages.default = legacyPackages.cross-nix-tests;
-         devShells = flakeboxLib.mkShells {
-           packages = [ ];
-         };
-        }
+      in
+      {
+        packages.default = multiBuild.${projectName};
+
+        legacyPackages = multiBuild;
+
+        devShells = flakeboxLib.mkShells { };
+      }
     );
 }
