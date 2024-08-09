@@ -21,13 +21,13 @@
 
       target = "armv7-unknown-linux-musleabihf";
 
-      # Access Fenix's packages using the stable channel for Rust 1.80.0
+      # Define the Rust 1.80.0 stable toolchain explicitly
       fenixPkgs = fenix.packages.${system};
 
       mkToolchain = fenixPkgs: fenixPkgs.toolchainOf {
         channel = "stable";
-        date = "2024-07-25";  # The correct date for Rust 1.80.0
-        sha256 = "sha256-6eN/GKzjVSjEhGO9FhWObkRFaE1Jf+uqMSdQnb8lcB4=";  # Pinned via hash
+        date = "2024-07-25";
+        sha256 = "sha256-6eN/GKzjVSjEhGO9FhWObkRFaE1Jf+uqMSdQnb8lcB4=";
       };
 
       toolchain = fenixPkgs.combine [
@@ -36,6 +36,7 @@
         (mkToolchain fenixPkgs.targets.${target}).rust-std
       ];
 
+      # Configure naersk with the correct toolchain
       naerskLib = pkgs.callPackage naersk {
         cargo = toolchain;
         rustc = toolchain;
@@ -62,8 +63,24 @@
       devShells.default = pkgs.mkShell {
         nativeBuildInputs = [
           toolchain
-          pkgs.pkg-config
+          pkgs.rustfmt
+          pkgs.clippy
         ];
+      };
+
+      # Define the checks output using mkShell
+      checks = {
+        lint = pkgs.mkShell {
+          nativeBuildInputs = [ toolchain pkgs.rustfmt pkgs.clippy ];
+          shellHook = ''
+            mkdir -p $TMPDIR/lint-check
+            cp -r $src/* $TMPDIR/lint-check/
+            cd $TMPDIR/lint-check
+            cargo fmt -- --check
+            cargo clippy -- -D warnings
+          '';
+        };
       };
     });
 }
+
