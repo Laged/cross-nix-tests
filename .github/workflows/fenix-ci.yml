@@ -14,17 +14,9 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  build:
-    name: Build
-    runs-on: ${{ matrix.runs-on }}
-    strategy:
-      matrix:
-        host:
-          - linux
-        include:
-          - host: linux
-            runs-on: ubuntu-latest
-            timeout: 60
+  build-native:
+    name: Build Native
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install Nix
@@ -36,9 +28,31 @@ jobs:
         with:
           key: ${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
           path: ~/.cargo
-      - name: Build with Nix
-        run: nix build .#packages.armv7-linux
-      - name: Upload build artifacts
+      - name: Build Native Package
+        run: nix build .#packages.default
+      - name: Upload Native Build Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: native-binary
+          path: ./result/bin/
+
+  build-armv7:
+    name: Build ARMv7
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Set up cargo cache
+        uses: actions/cache@v3
+        with:
+          key: ${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          path: ~/.cargo
+      - name: Build ARMv7 Package
+        run: nix build .#packages.armv7
+      - name: Upload ARMv7 Build Artifacts
         uses: actions/upload-artifact@v3
         with:
           name: armv7-binary
@@ -71,4 +85,3 @@ jobs:
       - name: Commit Check
         run: |
           nix develop --ignore-environment .#lint --command ./misc/git-hooks/pre-commit
-

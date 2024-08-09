@@ -42,23 +42,21 @@
       };
 
     in {
-      # Default package for native build
-      packages.default =
-        naerskLib.buildPackage {
-          src = ./.;
-        };
+      # Native build for the host system
+      packages.default = naerskLib.buildPackage {
+        src = ./.;
+      };
 
-      # Cross-compilation for ARMv7 with Rust 1.80.0 stable
-      packages.armv7 =
-        naerskLib.buildPackage {
-          src = ./.;
-          CARGO_BUILD_TARGET = target;
-          CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_LINKER =
-            let
-              inherit (pkgs.pkgsCross.armv7l-hf-multiplatform.stdenv) cc;
-            in
-            "${cc}/bin/${cc.targetPrefix}cc";
-        };
+      # Cross-compilation for ARMv7
+      packages.armv7 = naerskLib.buildPackage {
+        src = ./.;
+        CARGO_BUILD_TARGET = target;
+        CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_LINKER =
+          let
+            inherit (pkgs.pkgsCross.armv7l-hf-multiplatform.stdenv) cc;
+          in
+          "${cc}/bin/${cc.targetPrefix}cc";
+      };
 
       # Devshell for local development with Rust 1.80.0 stable
       devShells.default = pkgs.mkShell {
