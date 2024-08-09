@@ -82,6 +82,5 @@ jobs:
         with:
           key: ${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
           path: ~/.cargo
-      - name: Commit Check
-        run: |
-          nix develop --ignore-environment --command ./misc/git-hooks/pre-commit
+      - name: Run Pre-commit Hook
+        run: nix develop --ignore-environment --command ./misc/git-hooks/pre-commit
